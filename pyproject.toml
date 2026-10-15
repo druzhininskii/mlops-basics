@@ -3,6 +3,7 @@ name = "mlops-basics"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+    "pytest>=9.1.1",
     "ruff>=0.17.1",
     "ty>=0.0.88",
 ]
