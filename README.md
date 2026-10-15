@@ -7,9 +7,5 @@ _____
 list of tasks:
 
 - [X] homework №1: create simple python project using uv, ruff and ty tools
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
 
 
