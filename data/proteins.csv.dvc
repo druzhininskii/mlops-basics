@@ -1,0 +1,5 @@
+outs:
+- md5: 7a1717ed6021d692b4285df338d2136d
+  size: 361061
+  hash: md5
+  path: proteins.csv

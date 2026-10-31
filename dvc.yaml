@@ -1,0 +1,8 @@
+stages:
+  process:
+    cmd: uv run python src/process_data.py
+    deps:
+    - data/proteins.csv
+    - src/process_data.py
+    outs:
+    - data/proteins_clean.csv

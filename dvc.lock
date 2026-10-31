@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  process:
+    cmd: uv run python src/process_data.py
+    deps:
+    - path: data/proteins.csv
+      hash: md5
+      md5: 7a1717ed6021d692b4285df338d2136d
+      size: 361061
+    - path: src/process_data.py
+      hash: md5
+      md5: 64e929f7c9fd2068ea6c93463136d8d4
+      size: 1834
+    outs:
+    - path: data/proteins_clean.csv
+      hash: md5
+      md5: 7a1717ed6021d692b4285df338d2136d
+      size: 361061
