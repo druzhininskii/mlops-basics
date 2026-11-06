@@ -1,7 +1,4 @@
-from src.functions import add
-from src.functions import multiplication
-from src.functions import power
-
+from src.functions import add, multiplication, power
 
 if __name__ == "__main__":
     print(add(3, 2))
