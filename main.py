@@ -1,6 +1,4 @@
-from src.functions import add, multiplication, power
+from src.training import train_model
 
 if __name__ == "__main__":
-    print(add(3, 2))
-    print(multiplication(3, 3))
-    print(power(3, 3))
+    train_model()

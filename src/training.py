@@ -59,7 +59,7 @@ def evaluate(model, loader):
 
 
 
-def main():
+def train_model():
     torch.manual_seed(42)
 
     data = pd.read_csv("data/proteins.csv")
@@ -130,4 +130,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    train_model()
