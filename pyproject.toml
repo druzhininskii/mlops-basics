@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "dvc>=3.67.1",
     "hypothesis>=6.170.15",
+    "mlflow>=3.18.0",
     "pandas>=3.1.0",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
