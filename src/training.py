@@ -7,6 +7,13 @@ from src.dataset import ProteinDataset, collate_proteins
 from src.model import ProteinClassifier
 from src.process_data import process_sequences
 
+import mlflow
+import mlflow.pytorch
+from torch.utils.tensorboard import SummaryWriter
+
+from pathlib import Path
+from datetime import datetime
+
 
 def train_step(model, optimizer, batch):
     model.train()
@@ -59,12 +66,22 @@ def evaluate(model, loader):
 
 
 
-def train_model():
-    torch.manual_seed(42)
+def train_model(
+        batch_size: int = 16,
+        hidden_size: int = 32,
+        learning_rate: float = 0.001,
+        epochs: int = 100,
+        seed: int = 42,
+        max_sequence_length: int = 800,
+):
+    mlflow.set_tracking_uri("http://127.0.0.1:5000")
+    mlflow.set_experiment("protein-classification")
+
+    torch.manual_seed(seed)
 
     data = pd.read_csv("data/proteins.csv")
     clean, _, _ = process_sequences(
-        data, "sequence", max_len=800
+        data, "sequence", max_len=max_sequence_length
     )
 
     classes = sorted(clean["protein_family"].unique())
@@ -74,7 +91,7 @@ def train_model():
     clean["label"] = clean["protein_family"].map(class_to_index)
 
     validation = pd.concat([
-        group.sample(frac=0.2, random_state=42)
+        group.sample(frac=0.2, random_state=seed)
         for _, group in clean.groupby("protein_family")
     ])
     training = clean.drop(index=validation.index)
@@ -86,7 +103,7 @@ def train_model():
         )
         return DataLoader(
             dataset,
-            batch_size=16,
+            batch_size=batch_size,
             shuffle=shuffle,
             collate_fn=collate_proteins,
         )
@@ -94,40 +111,65 @@ def train_model():
     train_loader = make_loader(training, shuffle=True)
     val_loader = make_loader(validation, shuffle=False)
 
-    model = ProteinClassifier(
-        num_classes=len(classes),
-        hidden_size=32,
-    )
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    mlflow.pytorch.autolog(log_every_n_step=1)
+    run_name = f"lr_{learning_rate}_batch_{batch_size}"
+    with mlflow.start_run(run_name=run_name):
 
-    baseline = (
-        validation["label"]
-        .eq(training["label"].mode().iloc[0])
-        .mean()
-    )
-    print(f"Train: {len(training)}, validation: {len(validation)}")
-    print(f"Accuracy при предсказании частого класса: {baseline:.3f}")
+        mlflow.log_params({
+            "batch_size": batch_size,
+            "hidden_size": hidden_size,
+            "learning_rate": learning_rate,
+            "epochs": epochs,
+            "seed": seed,
+            "max_sequence_length": max_sequence_length,
+        })
 
-    for epoch in range(1, 101):
-        train_loss = train_epoch(model, optimizer, train_loader)
-        metrics = evaluate(model, val_loader)
-
-        print(
-            f"Epoch {epoch:02d} | "
-            f"train_loss={train_loss:.4f} | "
-            f"val_loss={metrics['loss']:.4f} | "
-            f"val_accuracy={metrics['accuracy']:.3f}"
+        model = ProteinClassifier(
+            num_classes=len(classes),
+            hidden_size=hidden_size,
         )
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "classes": classes,
-            "hidden_size": 32,
-        },
-        "protein_classifier.pt",
-    )
+        baseline = (
+            validation["label"]
+            .eq(training["label"].mode().iloc[0])
+            .mean()
+        )
+        print(f"Train: {len(training)}, validation: {len(validation)}")
+        print(f"Accuracy for most frequent class: {baseline:.3f}")
 
+        writer = SummaryWriter()
+        for epoch in range(1, epochs + 1):
+            train_loss = train_epoch(model, optimizer, train_loader)
+            metrics = evaluate(model, val_loader)
+
+            writer.add_scalar("train_loss", train_loss, epoch)
+            writer.add_scalar("val_loss", metrics["loss"], epoch)
+            writer.add_scalar("val_accuracy", metrics["accuracy"], epoch)
+
+            print(
+                f"Epoch {epoch:02d} | "
+                f"train_loss={train_loss:.4f} | "
+                f"val_loss={metrics['loss']:.4f} | "
+                f"val_accuracy={metrics['accuracy']:.3f}"
+            )
+
+        writer.close()
+
+        results_dir = Path("results")
+        results_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        checkpoint_path = results_dir / f"protein_classifier_{timestamp}.pt"
+
+        torch.save(
+            {
+                "model_state_dict": model.state_dict(),
+                "classes": classes,
+                "hidden_size": hidden_size,
+            },
+            checkpoint_path,
+        )
+        mlflow.log_artifact(checkpoint_path)
 
 if __name__ == "__main__":
     train_model()
