@@ -5,14 +5,15 @@ from torch.utils.data import DataLoader
 
 from src.dataset import ProteinDataset, collate_proteins
 from src.model import ProteinClassifier
-from src.process_data import process_sequences
 
 import mlflow
 import mlflow.pytorch
 from torch.utils.tensorboard import SummaryWriter
+from torch.profiler import ProfilerActivity, profile, schedule
 
 from pathlib import Path
 from datetime import datetime
+import subprocess
 
 
 def train_step(model, optimizer, batch):
@@ -29,7 +30,7 @@ def train_step(model, optimizer, batch):
     return loss.item()
 
 
-def train_epoch(model, optimizer, loader):
+def train_epoch(model, optimizer, loader, profiler=None):
     total_loss = 0.0
     total_samples = 0
 
@@ -39,6 +40,8 @@ def train_epoch(model, optimizer, loader):
 
         total_loss += loss * batch_size
         total_samples += batch_size
+        if profiler is not None:
+            profiler.step()
 
     return total_loss / total_samples
 
@@ -72,17 +75,13 @@ def train_model(
         learning_rate: float = 0.001,
         epochs: int = 100,
         seed: int = 42,
-        max_sequence_length: int = 800,
 ):
     mlflow.set_tracking_uri("http://127.0.0.1:5000")
     mlflow.set_experiment("protein-classification")
 
     torch.manual_seed(seed)
 
-    data = pd.read_csv("data/proteins.csv")
-    clean, _, _ = process_sequences(
-        data, "sequence", max_len=max_sequence_length
-    )
+    clean = pd.read_csv("data/proteins_clean.csv")
 
     classes = sorted(clean["protein_family"].unique())
     class_to_index = {
@@ -121,8 +120,11 @@ def train_model(
             "learning_rate": learning_rate,
             "epochs": epochs,
             "seed": seed,
-            "max_sequence_length": max_sequence_length,
         })
+        git_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        mlflow.log_param("git_commit", git_commit)
 
         model = ProteinClassifier(
             num_classes=len(classes),
@@ -139,9 +141,28 @@ def train_model(
         print(f"Accuracy for most frequent class: {baseline:.3f}")
 
         writer = SummaryWriter()
+        results_dir = Path("results")
+        results_dir.mkdir(exist_ok=True)
         for epoch in range(1, epochs + 1):
-            train_loss = train_epoch(model, optimizer, train_loader)
+            if epoch == 1:
+                with profile(
+                    activities=[ProfilerActivity.CPU],
+                    schedule=schedule(wait=0, warmup=1, active=2, repeat=1),
+                    on_trace_ready=lambda prof: prof.export_chrome_trace(
+                        str(results_dir / "trace.json")
+                    ),
+                    record_shapes=True,
+                    profile_memory=True,
+                ) as profiler:
+                    train_loss = train_epoch(model, optimizer, train_loader, profiler)
+            else:
+                train_loss = train_epoch(model, optimizer, train_loader)
             metrics = evaluate(model, val_loader)
+            mlflow.log_metrics({
+                "train_loss": train_loss,
+                "val_loss": metrics["loss"],
+                "val_accuracy": metrics["accuracy"],
+            }, step=epoch)
 
             writer.add_scalar("train_loss", train_loss, epoch)
             writer.add_scalar("val_loss", metrics["loss"], epoch)
@@ -156,8 +177,6 @@ def train_model(
 
         writer.close()
 
-        results_dir = Path("results")
-        results_dir.mkdir(exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
         checkpoint_path = results_dir / f"protein_classifier_{timestamp}.pt"
 
