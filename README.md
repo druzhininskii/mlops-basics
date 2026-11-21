@@ -11,5 +11,6 @@ list of tasks:
 - [X] homework №3: create dvc pipeline
 - [X] homework №4: create ml-pipeline and different tests that cover all modules
 - [X] homework №5: create ml-flow tracking of model training
+- [X] homework №6: integration of mlflow with dvc and pytorch profiling
 
 
