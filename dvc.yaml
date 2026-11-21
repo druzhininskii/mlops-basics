@@ -6,3 +6,9 @@ stages:
     - src/process_data.py
     outs:
     - data/proteins_clean.csv
+  train:
+    cmd: uv run python main.py
+    deps:
+    - data/proteins_clean.csv
+    - main.py
+    - src
