@@ -13,5 +13,7 @@ list of tasks:
 - [X] homework №5: create ml-flow tracking of model training
 - [X] homework №6: integration of mlflow with dvc and pytorch profiling
 - [X] homework №7: try model registy and onnx format of pytorch model
+- [X] homework №8: add Dockerfile
+- [X] homework №9: add simple docker-compose.yaml 
 
 
