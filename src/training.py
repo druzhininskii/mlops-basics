@@ -13,7 +13,7 @@ from torch.profiler import ProfilerActivity, profile, schedule
 
 from pathlib import Path
 from datetime import datetime
-import subprocess
+import os
 
 
 def train_step(model, optimizer, batch):
@@ -76,7 +76,7 @@ def train_model(
         epochs: int = 100,
         seed: int = 42,
 ):
-    mlflow.set_tracking_uri("http://127.0.0.1:5000")
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     mlflow.set_experiment("protein-classification")
 
     torch.manual_seed(seed)
@@ -121,11 +121,6 @@ def train_model(
             "epochs": epochs,
             "seed": seed,
         })
-        git_commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
-        ).stdout.strip()
-        mlflow.log_param("git_commit", git_commit)
-
         model = ProteinClassifier(
             num_classes=len(classes),
             hidden_size=hidden_size,
