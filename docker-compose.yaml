@@ -1,0 +1,36 @@
+services:
+  mlflow:
+    image: mlpipeline:latest
+    build: .
+    command: >-
+      uv run --no-sync mlflow server
+      --host 0.0.0.0
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --allowed-hosts mlflow:5000,localhost:5000,127.0.0.1:5000
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  training:
+    image: mlpipeline:latest
+    build: .
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      - ./data:/app/data:ro
+      - ./results:/app/results
+      - ./runs:/app/runs
+    depends_on:
+      mlflow:
+        condition: service_healthy
+
+volumes:
+  mlflow-data:
